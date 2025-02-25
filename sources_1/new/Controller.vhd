@@ -25,9 +25,9 @@ architecture Behavioral of Controller is
     -- Internal signals
     signal reg1, reg2 : STD_LOGIC_VECTOR(7 downto 0); -- Temporary registers
     signal swap_flag  : STD_LOGIC;                   -- Flag to indicate swap
-    signal inner_counter : INTEGER range 0 to 15 := 15; -- Counter for inner loop
-    signal outer_counter : INTEGER range 0 to 15 := 15; -- Counter for outer loop
-
+    signal inner_counter, nextinner_counter : INTEGER range 0 to 15 := 15; -- Counter for inner loop
+    signal outer_counter, nextouter_counter : INTEGER range 0 to 15 := 15; -- Counter for outer loop
+    signal twocounter, nextwocounter: INTEGER range 0 to 2 := 0; -- Two-cycle counter for LOAD1 state
 begin
 
     -- State Machine Process
@@ -35,13 +35,19 @@ begin
     begin
         if RESET = '1' then
             current_state <= IDLE;
+            inner_counter <= 15;
+            outer_counter <= 15;
+            twocounter <= 0; -- Reset twocounter on RESET
         elsif rising_edge(CLK) then
             current_state <= next_state;
+            inner_counter <= nextinner_counter;
+            outer_counter <= nextouter_counter;
+            twocounter <= nextwocounter; -- Update twocounter at each clock cycle
         end if;
     end process;
 
     -- Next State Logic and Output Logic
-    process (current_state, START, reg1, reg2, inner_counter, outer_counter)
+    process (current_state, START, reg1, reg2, inner_counter, outer_counter, twocounter)
     begin
         -- Default values for outputs
         next_state <= current_state;
@@ -57,24 +63,40 @@ begin
             when IDLE =>
                 if START = '1' then
                     next_state <= LOAD1;
-                    inner_counter <= 15;
-                    outer_counter <= 15;
+                    nextinner_counter <= 15; -- Initial value for inner counter
+                    nextouter_counter <= 15; -- Initial value for outer counter
+                    nextwocounter <= 0;      -- Reset twocounter when starting
                 end if;
 
-            -- LOAD1: Load the current element
+            -- LOAD1: Load the current element (stay for 2 clock cycles)
             when LOAD1 =>
                 EN <= '1';
                 ADDR <= std_logic_vector(to_unsigned(inner_counter, 4));
-                reg1 <= DOUT; -- Load current element                
-                next_state <= LOAD2;
+                reg1 <= DOUT; -- Load current element
+                if twocounter < 2 then
+                    next_state <= LOAD1;
+                    nextwocounter <= twocounter + 1;  -- Increment the cycle counter
+                else
+                    next_state <= LOAD2;          -- After 2 cycles, move to LOAD2
+                    nextwocounter <= 0;           -- Reset the cycle counter
+                end if;
 
             -- LOAD2: Load the previous element
             when LOAD2 =>
                 EN <= '1';
                 ADDR <= std_logic_vector(to_unsigned(inner_counter - 1, 4));
                 reg2 <= DOUT; -- Load previous element
-                next_state <= COMPARE;
-
+                              
+                if twocounter < 2 then
+                    next_state <= LOAD2;
+                    nextwocounter <= twocounter + 1;  -- Increment the cycle counter
+                else
+                    next_state <= COMPARE;          -- After 2 cycles, move to LOAD2
+                    nextwocounter <= 0;           -- Reset the cycle counter
+                end if;
+                
+                
+                
             -- COMPARE: Compare the two loaded elements
             when COMPARE =>
                 if reg1 < reg2 then
@@ -106,12 +128,12 @@ begin
                     if outer_counter = 0 then -- End of all iterations
                         next_state <= DONE_STATE;
                     else
-                        outer_counter <= outer_counter - 1; -- Decrease outer loop
-                        inner_counter <= 15; -- Reset inner loop
+                        nextouter_counter <= outer_counter - 1; -- Decrease outer loop
+                        nextinner_counter <= 15; -- Reset inner loop
                         next_state <= LOAD1;
                     end if;
                 else
-                    inner_counter <= inner_counter - 1; -- Decrease inner loop counter
+                    nextinner_counter <= inner_counter - 1; -- Decrease inner loop counter
                     next_state <= LOAD1;
                 end if;
 

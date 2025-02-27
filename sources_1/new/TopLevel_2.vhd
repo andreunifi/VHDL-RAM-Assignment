@@ -6,10 +6,9 @@ entity TopLevelDownUp is
     Port (
         CLK         : in  STD_LOGIC;
         RESET       : in  STD_LOGIC;
-        START       : in  STD_LOGIC;
+        START       : in  STD_LOGIC
         
-        -- RAM interface
-        RAM_CLK     : in  STD_LOGIC
+
     );
 end TopLevelDownUp;
 
@@ -40,7 +39,6 @@ architecture Behavioral of TopLevelDownUp is
     signal fsm_DOUT   : STD_LOGIC_VECTOR(7 downto 0); -- Added for DOUT connection
     signal fsm_WE     : STD_LOGIC;
     signal fsm_EN     : STD_LOGIC;
-    signal fsm_DONE   : STD_LOGIC;
     signal fsm_DATA_OUT : STD_LOGIC;
 
 begin
@@ -51,7 +49,6 @@ begin
             CLK         => CLK,
             RESET       => RESET,
             START       => START,
-            DONE        => fsm_DONE,
             ADDR        => fsm_ADDR,
             DIN         => fsm_DIN,
             DOUT        => fsm_DOUT, -- Connected to fsm_DOUT
@@ -72,7 +69,7 @@ begin
         port map (
             ADDR => fsm_ADDR,
             DIN  => fsm_DIN,
-            CLK  => RAM_CLK, -- Explicit RAM clock connection
+            CLK  => CLK, -- Explicit RAM clock connection
             WE   => fsm_WE,
             EN   => fsm_EN,
             DOUT => fsm_DOUT -- Connected to fsm_DOUT

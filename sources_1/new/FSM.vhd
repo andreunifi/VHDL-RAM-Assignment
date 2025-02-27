@@ -7,19 +7,20 @@ entity FSM is
         CLK     : in  STD_LOGIC;
         RESET   : in  STD_LOGIC;
         START   : in  STD_LOGIC;
-        DONE    : out STD_LOGIC;
         ADDR    : out STD_LOGIC_VECTOR(3 downto 0);
         DIN     : out STD_LOGIC_VECTOR(7 downto 0);
         DOUT    : in  STD_LOGIC_VECTOR(7 downto 0);
         WE      : out STD_LOGIC;
         EN      : out STD_LOGIC;
-        DATA_OUT: out STD_LOGIC -- Output signal to indicate completion
+        DATA_OUT: out STD_LOGIC 
     );
 end FSM;
 
 architecture Behavioral of FSM is
 
-    -- State encoding
+    --Current states. I choose to split the bubble sort logic into a mixed approach
+    --Mostly an inner/outer counter for the external logic, but the single step is composed
+    --Of multiple steps
     type State_Type is (IDLE, LOAD1, LOAD2, COMPARE, SWAP1, SWAP2, INCREMENT, DONE_STATE);
     signal current_state, next_state : State_Type;
 
@@ -28,7 +29,6 @@ architecture Behavioral of FSM is
     signal nextreg1,nextreg2: STD_LOGIC_VECTOR(7 downto 0);
     signal swap_flag  : STD_LOGIC;                   -- Flag to indicate swap
     signal inner_counter,next_inner_counter : INTEGER range 0 to 15;    -- Counter for address iteration
-    signal outer_counter,next_outer_counter : INTEGER range 0 to 1;     -- Controls forward/backward iteration
     signal direction,next_direction : STD_LOGIC;                    -- 1: Forward (0 to 15), 0: Backward (15 to 0)
     signal twocounter, nextwocounter: INTEGER range 0 to 2 := 0; -- Two-cycle counter for LOAD1 state
 
@@ -40,7 +40,6 @@ begin
         if RESET = '1' then
             current_state <= IDLE;
             inner_counter <= 0;
-            outer_counter <= 0;
             direction <= '1';
             reg1 <= (others => '0');
             reg2 <= (others => '0');
@@ -51,7 +50,6 @@ begin
             current_state <= next_state;
             direction <= next_direction;
             inner_counter <= next_inner_counter;
-            outer_counter <= next_outer_counter;
             twocounter <= nextwocounter; -- Update twocounter at each clock cycle
             reg1 <= nextreg1;
             reg2 <= nextreg2;
@@ -60,7 +58,7 @@ begin
     end process;
 
     -- Combinational Process: Next-state logic and outputs
-    process (current_state, START, reg1, reg2, inner_counter, outer_counter, direction,twocounter)
+    process (current_state, START, reg1, reg2, inner_counter, direction,twocounter)
     begin
         -- Default values for outputs
         next_state <= current_state;
@@ -68,7 +66,7 @@ begin
         DIN <= (others => '0');
         WE <= '0';
         EN <= '0';
-        DONE <= '0';
+        DATA_OUT <= '0';
         next_direction <= direction;
         swap_flag <= '0';
         
@@ -77,15 +75,15 @@ begin
             when IDLE =>
                 if START = '1' then                   
                     next_state <= LOAD1;
-                    nextwocounter <= 0;      -- Reset twocounter when starting
-                    next_inner_counter <= 0; -- Initial value for inner counter
-                    next_outer_counter <= 1; -- Initial value for outer counter
+                    nextwocounter <= 0;      
+                    next_inner_counter <= 0; 
                     next_direction <= '1';
                  else
                     next_state <= IDLE;   
                 end if;
 
-            -- LOAD1: Load data from the current address
+            -- LOAD1: Load the current element (wait 2 CC for the Ram, i've done this to 
+            --avoid unassigned signals )
             when LOAD1 =>
                 EN <= '1';
                 ADDR <= std_logic_vector(to_unsigned(inner_counter, 4));
@@ -93,15 +91,16 @@ begin
                 
                  if twocounter < 2 then
                     next_state <= LOAD1;
-                    nextwocounter <= twocounter + 1;  -- Increment the cycle counter
+                    nextwocounter <= twocounter + 1;  ---- Increment the cycle counter so that it stays
+                    --until the ram has completed the cycle for outputting data
                 else
-                    next_state <= LOAD2;          -- After 2 cycles, move to LOAD2
-                    nextwocounter <= 0;           -- Reset the cycle counter
+                    next_state <= LOAD2;          
+                    nextwocounter <= 0;          
                 end if;
                 
                 
 
-            -- LOAD2: Load data from the next address
+
             when LOAD2 =>
                 EN <= '1';
                 if direction = '1' then
@@ -131,7 +130,8 @@ begin
                     next_state <= INCREMENT;
                 end if;
 
-            -- SWAP1: Write the first value (larger/smaller) to the appropriate address
+--Swap2 switches the N element to the N+1 position, handles RAM signal logic, and then moves to swap_previous
+
             when SWAP1 =>
                 EN <= '1';
                 WE <= '1';
@@ -143,7 +143,8 @@ begin
                 DIN <= reg1;
                 next_state <= SWAP2;
 
-            -- SWAP2: Write the second value (smaller/larger) to the other address
+ --If reg1<reg2, data[inner_counter -1] <= data[inner_counter]
+
             when SWAP2 =>
                 EN <= '1';
                 WE <= '1';
@@ -151,42 +152,38 @@ begin
                 DIN <= reg2;
                 next_state <= INCREMENT;
 
-            -- INCREMENT: Move to the next pair or change direction
+--The logic for handling the loop checks if i am on my last iteration
+--(inner_counter = '1' so that it means i've reached the last element, since they are processed in pairs)
             when INCREMENT =>
                
                if direction = '1' then
                   -- Counting upwards until 14
                if inner_counter < 14 then
                 next_inner_counter <= inner_counter + 1;
-                next_state <= LOAD1;  -- Restart the process with LOAD1
+                next_state <= LOAD1;  
 
                 else
                 next_direction <= '0';
                 next_inner_counter <= 15;
-                next_outer_counter <= 0; -- Set outer_counter to 0 (going backwards)
-                next_state <= LOAD1;  -- Restart the process with LOAD1
+                next_state <= LOAD1;  
                 end if;
                 
                 else
-                 -- Counting downwards from 14 to 0
                 if inner_counter > 1 then
                 next_inner_counter <= inner_counter - 1;
-                 next_state <= LOAD1;  -- Restart the process with LOAD1
+                 next_state <= LOAD1;  
 
                 else
-            -- If inner_counter reaches 0, the process is done
+
                 next_state <= DONE_STATE;
                 end if;
                 end if;
                
                
                
-               
-               
+--If sorting complete, DATA_OUT is set to one
 
-            -- DONE_STATE: Signal completion
             when DONE_STATE =>
-                DONE <= '1';
                 DATA_OUT <= '1';
                 next_state <= IDLE;
 

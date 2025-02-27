@@ -13,8 +13,7 @@ architecture Behavioral of TopLevelDownUp_tb is
         Port (
             CLK         : in  STD_LOGIC;
             RESET       : in  STD_LOGIC;
-            START       : in  STD_LOGIC;
-            RAM_CLK     : in  STD_LOGIC
+            START       : in  STD_LOGIC
         );
     end component;
 
@@ -22,11 +21,9 @@ architecture Behavioral of TopLevelDownUp_tb is
     signal CLK       : STD_LOGIC := '0';
     signal RESET     : STD_LOGIC := '0';
     signal START     : STD_LOGIC := '0';
-    signal RAM_CLK   : STD_LOGIC := '0';
 
     -- Clock period definitions
     constant CLK_PERIOD : time := 10 ns;  -- Main clock period
-    constant RAM_CLK_PERIOD : time := 10 ns; -- RAM clock period
 
 begin
 
@@ -35,8 +32,7 @@ begin
         port map (
             CLK     => CLK,
             RESET   => RESET,
-            START   => START,
-            RAM_CLK => RAM_CLK
+            START   => START
         );
 
     -- Clock generation for the main clock
@@ -50,16 +46,7 @@ begin
         end loop;
     end process;
 
-    -- Clock generation for the RAM clock
-    RAM_CLK_process : process
-    begin
-        while true loop
-            RAM_CLK <= '0';
-            wait for RAM_CLK_PERIOD / 2;
-            RAM_CLK <= '1';
-            wait for RAM_CLK_PERIOD / 2;
-        end loop;
-    end process;
+
 
     -- Stimulus process
     stimulus_process: process
@@ -76,7 +63,7 @@ begin
         START <= '0';
 
         -- Wait for the sorting process to complete
-        wait for 2000 ns; -- Adjust time based on design's execution speed
+        wait for 30000 ns; -- Adjust time based on design's execution speed
 
         -- End simulation
         wait;

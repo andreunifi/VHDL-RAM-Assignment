@@ -59,6 +59,10 @@ The FSM transitions between states such as:
 
 📌 *Refer to the `State_Diagram.png` for more details.*
 
+
+![State Diagram](State_Diagram.png)
+
+
 ### 🕒 Simulation
 Simulations are run to verify the design:
 - The system requires approximately **5,470,000 ns** to sort the data.
